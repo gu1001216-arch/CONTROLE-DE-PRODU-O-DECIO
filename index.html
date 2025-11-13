@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Produção - Turno 1 (Ciclos até 17:30)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 10px 0;
+            text-align: center;
+        }
+        .content {
+            padding: 20px;
+            text-align: center;
+        }
+        .relogio-box {
+            display: inline-block;
+            background-color: #ecf0f1;
+            padding: 20px;
+            border-radius: 8px;
+            font-size: 30px;
+            font-weight: bold;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+            margin-bottom: 20px;
+        }
+        /* Estilos para as abas */
+        .tabs {
+            overflow-x: auto;
+            white-space: nowrap;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #ccc;
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        .tab-button {
+            background-color: #ddd;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            outline: none;
+            transition: background-color 0.3s;
+            margin-right: 5px;
+            border-radius: 5px 5px 0 0;
+        }
+        .tab-button.active {
+            background-color: #2c3e50;
+            color: white;
+            border-bottom: 2px solid #2c3e50;
+        }
+        /* Estilos para as caixas de tempo e texto */
+        .intervalos, .caixas-extra {
+            margin-top: 30px;
+            text-align: center;
+        }
+        .intervalo-box, .caixa-azul, .caixa-rosa {
+            display: inline-block;
+            padding: 10px 20px;
+            border-radius: 8px;
+            margin: 10px;
+        }
+        .intervalo-box {
+            background-color: #a2d9f7; /* Azul claro */
+        }
+        .caixa-azul {
+            background-color: #a2d9f7; /* Azul claro */
+        }
+        .caixa-rosa {
+            background-color: #f7b7b7; /* Rosa claro */
+        }
+        input[type="time"], input[type="text"] {
+            font-size: 18px;
+            padding: 5px;
+            width: 120px;
+            text-align: center;
+            border: 2px solid #f7b7b7; /* Borda rosa */
+            border-radius: 5px;
+            background-color: #fff;
+        }
+        input[type="time"]:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: #f06292; /* Cor mais forte de rosa no foco */
+        }
+        .caixas-rosa-multipla {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .caixas-rosa-multipla div {
+            width: 120px;
+        }
+        .tact-time-info {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+        /* Estilo para o novo botão de início */
+        #iniciarSistema {
+            padding: 15px 30px; 
+            font-size: 20px; 
+            font-weight: bold;
+            background-color: #2ecc71; /* Verde */
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-bottom: 20px;
+        }
+        #iniciarSistema:hover {
+            background-color: #27ae60;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Controle de Produção - 1° Turno (Tempo Residual Ativo)</h1>
+</header>
+
+<div class="content">
+    
+    <div class="relogio-box" id="relogio">
+        Carregando horário...
+    </div>
+
+    <button id="iniciarSistema">
+        CLIQUE AQUI PARA INICIAR O SISTEMA DE AVISOS DE VOZ
+    </button>
+    <div class="tabs" id="tabs-container">
+    </div>
+
+    <div id="product-content">
+    </div>
+
+</div>
+
+<script>
+    // -----------------------------------------------------------------------------------
+    // DADOS FIXOS E ESTADO GLOBAL (SEM LOCALSTORAGE)
+    // -----------------------------------------------------------------------------------
+
+    const TURNO_INICIO = '06:00:00';
+    const TURNO_FIM = '17:30:00'; // Finalização do turno
+    const TURNO_FIM_SEGUNDOS = 63000; // 17:30:00 em segundos
+
+    // ATUALIZADO: Avisos de voz para o início dos intervalos
+    const INTERVALOS = [
+        { inicio: '08:20:00', fim: '08:35:00', nome: 'Café 1', avisoVoz: 'Intervalo iniciado, bom café a todos!' },
+        { inicio: '11:30:00', fim: '12:30:00', nome: 'Almoço', avisoVoz: 'Intervalo iniciado, bom almoço a todos!' },
+        { inicio: '13:50:00', fim: '14:05:00', nome: 'Café 2', avisoVoz: 'Intervalo iniciado, bom café a todos!' },
+    ];
+
+    const PRODUTOS = [
+        // Lista completa de produtos e seus Tact Times em minutos
+        { nome: 'PATCH PANEL PPD24', tactTime: 3 },
+        { nome: 'PATCH PANEL PPDB24', tactTime: 4 },
+        { nome: 'RACK MRD 3U 470MM', tactTime: 11 },
+        { nome: 'RACK MRD 5U 470MM', tactTime: 11 },
+        { nome: 'RACK MRD 8U 470MM', tactTime: 11 },
+        { nome: 'RACK MRD 12U 470MM', tactTime: 11.5 },
+        { nome: 'RACK MRD 3U BS', tactTime: 2 },
+        { nome: 'RACK MRD 5U BS', tactTime: 3 },
+        { nome: 'RACK MRD 8U BS', tactTime: 5 },
+        { nome: 'RACK MRD 12U BS', tactTime: 3 },
+        { nome: 'RACK 5U BS OUTDOOR', tactTime: 4 },
+        { nome: 'RACK 8U BS OUTDOOR', tactTime: 5 },
+        { nome: 'RACK 12U BS OUTDOOR', tactTime: 5 },
+        { nome: 'RACK 24U TORRE', tactTime: 2 },
+        { nome: 'RACK 36U TORRE', tactTime: 4 },
+        { nome: 'RACK 44U TORRE', tactTime: 2 },
+        { nome: 'RACK RPD PA 1657', tactTime: 5 },
+        { nome: 'RACK RPD PA 2057', tactTime: 4 },
+        { nome: 'RACK RPD PA 2457', tactTime: 2 },
+        { nome: 'RACK RPD PA 2857', tactTime: 5 },
+        { nome: 'RACK RPD PA 3257', tactTime: 5 },
+        { nome: 'RACK RPD PA 3657', tactTime: 2 },
+        { nome: 'RACK RPD PA 4057', tactTime: 4 },
+        { nome: 'RACK RPD PA 4457', tactTime: 2 },
+        { nome: 'RACK RPD PP 4457', tactTime: 5 },
+        { nome: 'RACK RPD PA 1667', tactTime: 4 },
+        { nome: 'RACK RPD PA 2067', tactTime: 2 },
+        { nome: 'RACK RPD PA 2467', tactTime: 5 },
+        { nome: 'RACK RPD PA 2867', tactTime: 4 },
+        { nome: 'RACK RPD PA 3267', tactTime: 4 },
+        { nome: 'RACK RPD PA 3667', tactTime: 3 },
+        { nome: 'RACK RPD PA 4067', tactTime: 2 },
+        { nome: 'RACK RPD PA 4467', tactTime: 2 },
+        { nome: 'RACK RPD PP 4467', tactTime: 2 },
+        { nome: 'RACK RPD PA 2487', tactTime: 3 },
+        { nome: 'RACK RPD PA 2887', tactTime: 3 },
+        { nome: 'RACK RPD PA 3287', tactTime: 2 },
+        { nome: 'RACK RPD PA 3687', tactTime: 4 },
+        { nome: 'RACK RPD PA 4087', tactTime: 3 },
+        { nome: 'RACK RPD PA 4487', tactTime: 5 },
+        { nome: 'RACK RPD PP 4487', tactTime: 2 },
+        { nome: 'RACK RPD PA 3217', tactTime: 4 },
+        { nome: 'RACK RPD PA 3617', tactTime: 2 },
+        { nome: 'RACK RPD PA 4017', tactTime: 4 },
+        { nome: 'RACK RPD PA 4417', tactTime: 3 },
+        { nome: 'RACK RPD PP 4417', tactTime: 2 },
+        { nome: 'ORG CABOS VERTICAL 36U', tactTime: 2 },
+        { nome: 'ORG CABOS VERTICAL 44U', tactTime: 4 },
+        { nome: 'RACK ESTRUTURA RPD-4495', tactTime: 4 },
+        { nome: 'ENTERPRISE 44U (FECHADO)', tactTime: 2 },
+        { nome: 'ENTERPRISE 44U (ABERTO)', tactTime: 3 },
+        { nome: 'L 800', tactTime: 5 },
+        { nome: 'L 600', tactTime: 2 },
+        { nome: 'L 400', tactTime: 4 },
+        { nome: 'L 290', tactTime: 4 },
+        { nome: 'TELESC 800', tactTime: 3 },
+        { nome: 'TELESC 600', tactTime: 2 },
+        { nome: 'TELESC 400', tactTime: 2 },
+        { nome: 'ALT 40', tactTime: 5 },
+        { nome: 'ALT 80', tactTime: 4 },
+        { nome: 'BAND CHANTELIER', tactTime: 4 },
+        { nome: 'CONJUNTO FRENTE FALSA', tactTime: 4 },
+        { nome: 'CONJUNTO FRENTE FALSA (5ND)', tactTime: 3 },
+        { nome: 'RACK MRM 3U ', tactTime: 3 },
+        { nome: 'RACK MRM 5U', tactTime: 6.25 },
+        { nome: 'CAIXA ORG. PRETA', tactTime: 4.25 },
+        { nome: 'CAIXA ORG. BRANCA', tactTime: 4.25 },
+    ];
+
+    // Objeto para gerenciar o estado sem localStorage
+    let estadoAtual = {
+        produtoAtivo: PRODUTOS[0].nome,
+        // Textos padrão que serão usados no início
+        textosPadrao: {
+            caixaAzul: 'Ciclo iniciado',      // Padrão para Início de Ciclo (06:00:00, Retornos de Pausa)
+            caixaRosa: 'Ciclo finalizado'     // Padrão para Fins de Ciclo (06:03:00, 06:06:00, etc)
+        }
+    };
+    
+    // -----------------------------------------------------------------------------------
+    // FUNÇÕES DE UTILIDADE DE TEMPO
+    // -----------------------------------------------------------------------------------
+
+    /** Converte "HH:MM:SS" para total de segundos. */
+    function timeToSeconds(tempo) {
+        const partes = tempo.split(':').map(Number);
+        const h = partes[0] || 0;
+        const m = partes[1] || 0;
+        const s = partes[2] || 0;
+        return h * 3600 + m * 60 + s;
+    }
+
+    /** Converte total de segundos para "HH:MM:SS". */
+    function secondsToTime(totalSegundos) {
+        const total = Math.round(totalSegundos);
+        const segundos = total % 60;
+        const minutos = Math.floor(total / 60) % 60;
+        const horas = Math.floor(total / 3600);
+        
+        return [horas, minutos, segundos]
+            .map(t => t.toString().padStart(2, '0'))
+            .join(':');
+    }
+
+    /**
+     * Adiciona minutos a um tempo, considerando o tempo residual após os intervalos,
+     * e garante que o turno termina em TURNO_FIM (17:30:00).
+     */
+    function adicionarMinutosComIntervalos(tempoInicial, minutosAdicionar) {
+        let tempoSegundos = timeToSeconds(tempoInicial);
+        let segundosRestantes = minutosAdicionar * 60;
+
+        // Laço que conta o tempo produtivo segundo a segundo
+        while (segundosRestantes > 0) {
+            
+            // Se o próximo segundo já ultrapassa o fim do turno, encerra aqui.
+            if (tempoSegundos + 1 > TURNO_FIM_SEGUNDOS) {
+                return TURNO_FIM;
+            }
+
+            // Avança um segundo
+            tempoSegundos++;
+            
+            let emIntervalo = false;
+            
+            // Verifica se o tempo atual caiu em algum intervalo de pausa
+            for (const intervalo of INTERVALOS) {
+                const inicioSegundos = timeToSeconds(intervalo.inicio);
+                const fimSegundos = timeToSeconds(intervalo.fim);
+
+                // Se o tempo está dentro do intervalo de pausa
+                if (tempoSegundos > inicioSegundos && tempoSegundos <= fimSegundos) {
+                    // Pula o tempo de descanso
+                    tempoSegundos = fimSegundos;
+                    emIntervalo = true;
+                    break;
+                }
+            }
+            
+            // Se não estamos em um intervalo, este foi um segundo produtivo
+            if (!emIntervalo) {
+                segundosRestantes--;
+            }
+        }
+        
+        // Retorna o tempo final. Se for maior que o fim do turno, retorna o fim do turno.
+        return secondsToTime(Math.min(tempoSegundos, TURNO_FIM_SEGUNDOS));
+    }
+    
+    // -----------------------------------------------------------------------------------
+    // FUNÇÕES DE GERAÇÃO E ATUALIZAÇÃO DO CONTEÚDO
+    // -----------------------------------------------------------------------------------
+
+    /**
+     * Gera o HTML do conteúdo de uma aba, exibindo todos os ciclos até 17:30:00.
+     */
+    function gerarConteudoAba(nomeProduto, tactTime) {
+        let html = `
+            <div class="tact-time-info">
+                Produto Ativo: <strong>${nomeProduto}</strong> (Tact Time: ${tactTime} minutos)
+            </div>
+            <div class="caixas-extra">
+                <div class="caixa-azul">
+                    <label for="caixaAzul">Caixa Azul (Aviso de Ciclo INICIADO):</label>
+                    <input type="text" id="caixaAzul" name="caixaAzul" placeholder="Ciclo iniciado" required>
+                </div>
+                <div class="caixa-rosa">
+                    <label for="caixaRosa">Caixa Rosa (Aviso de Ciclo FINALIZADO):</label>
+                    <input type="text" id="caixaRosa" name="caixaRosa" placeholder="Ciclo finalizado" required>
+                </div>
+            </div>
+            <div class="intervalos">
+                <h2>Intervalos Programados (Pausas)</h2>
+                ${INTERVALOS.map((intervalo, index) => `
+                    <div class="intervalo-box">
+                        <label>${intervalo.nome} (Início/Fim):</label>
+                        <input type="time" value="${intervalo.inicio.substring(0, 5)}" step="1" readonly>
+                        <input type="time" value="${intervalo.fim.substring(0, 5)}" step="1" readonly>
+                    </div>
+                `).join('')}
+            </div>
+            <h2>Horários de Ciclo Calculados (Até 17:30:00)</h2>
+            <div class="caixas-rosa-multipla">
+        `;
+
+        let tempoAnterior = TURNO_INICIO;
+        const limiteCiclos = 500; 
+        const minutosTact = tactTime;
+
+        for (let i = 1; i <= limiteCiclos; i++) {
+            let tempoAtual = adicionarMinutosComIntervalos(tempoAnterior, minutosTact);
+
+            if (tempoAtual === TURNO_FIM) {
+                 html += `
+                    <div>
+                        <input type="time" id="hora_${nomeProduto}_${i}" value="${tempoAtual.substring(0, 8)}" step="1" readonly style="color: red; font-weight: bold;">
+                    </div>
+                `;
+                 break; 
+            }
+            
+
+            html += `
+                <div>
+                    <input type="time" id="hora_${nomeProduto}_${i}" value="${tempoAtual.substring(0, 8)}" step="1" readonly>
+                </div>
+            `;
+            
+            tempoAnterior = tempoAtual;
+        }
+
+        html += `</div>`;
+        return html;
+    }
+
+
+    /**
+     * Alterna a aba ativa e carrega o conteúdo, definindo os textos padrões nas caixas.
+     */
+    function trocarAba(novoProduto) {
+        // Salva o texto digitado ANTES de trocar de aba, no objeto estadoAtual
+        salvarEstadoTemporario();
+        
+        estadoAtual.produtoAtivo = novoProduto;
+
+        document.querySelectorAll('.tab-button').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.dataset.produto === novoProduto) {
+                btn.classList.add('active');
+            }
+        });
+
+        const produtoData = PRODUTOS.find(p => p.nome === novoProduto);
+        if (produtoData) {
+            document.getElementById('product-content').innerHTML = gerarConteudoAba(produtoData.nome, produtoData.tactTime);
+            // Carrega o texto salvo para a nova aba (ou o padrão, se for a primeira vez)
+            carregarEstadoTemporario(novoProduto);
+        }
+    }
+    
+    // -----------------------------------------------------------------------------------
+    // FUNÇÕES DE PERSISTÊNCIA (TEMPORÁRIA NA MEMÓRIA) E RELÓGIO
+    // -----------------------------------------------------------------------------------
+    
+    // Armazena o texto digitado APENAS enquanto a página está aberta
+    function salvarEstadoTemporario() {
+        const caixaAzul = document.getElementById('caixaAzul');
+        const caixaRosa = document.getElementById('caixaRosa');
+
+        // Usa o nome do produto ativo como chave para salvar o texto digitado
+        if (caixaAzul) estadoAtual[estadoAtual.produtoAtivo + '_azul'] = caixaAzul.value;
+        if (caixaRosa) estadoAtual[estadoAtual.produtoAtivo + '_rosa'] = caixaRosa.value;
+    }
+
+    // Carrega o texto temporário ou define o padrão
+    function carregarEstadoTemporario(chaveProduto) {
+        const caixaAzul = document.getElementById('caixaAzul');
+        const caixaRosa = document.getElementById('caixaRosa');
+        
+        // Verifica se há um texto salvo temporariamente para esta aba
+        const textoAzulSalvo = estadoAtual[chaveProduto + '_azul'];
+        const textoRosaSalvo = estadoAtual[chaveProduto + '_rosa'];
+
+        // Define o texto na Caixa Azul
+        if (caixaAzul) {
+             // Prioridade: 1. Texto temporário salvo, 2. Texto padrão
+             caixaAzul.value = textoAzulSalvo !== undefined ? textoAzulSalvo : estadoAtual.textosPadrao.caixaAzul;
+        }
+        
+        // Define o texto na Caixa Rosa
+        if (caixaRosa) {
+             // Prioridade: 1. Texto temporário salvo, 2. Texto padrão
+             caixaRosa.value = textoRosaSalvo !== undefined ? textoRosaSalvo : estadoAtual.textosPadrao.caixaRosa;
+        }
+        
+        // Adiciona um listener para salvar o estado temporário sempre que o usuário digitar
+        if (caixaAzul) caixaAzul.addEventListener('input', salvarEstadoTemporario);
+        if (caixaRosa) caixaRosa.addEventListener('input', salvarEstadoTemporario);
+    }
+
+
+    /**
+     * Atualiza o relógio e verifica os horários de ciclo para avisos de voz.
+     */
+    function atualizarRelogio() {
+        const now = new Date();
+        const horarioBrasilia = [
+            now.getHours().toString().padStart(2, '0'),
+            now.getMinutes().toString().padStart(2, '0'),
+            now.getSeconds().toString().padStart(2, '0')
+        ].join(':');
+        
+        document.getElementById('relogio').textContent = horarioBrasilia;
+        
+        // Apenas verifica avisos de voz se o turno ainda não acabou.
+        if (timeToSeconds(horarioBrasilia) <= TURNO_FIM_SEGUNDOS) {
+            verificarHorarioCaixas(horarioBrasilia, estadoAtual.produtoAtivo);
+        }
+    }
+
+    /**
+     * Verifica se o horário do relógio coincide com algum horário de intervalo ou ciclo.
+     */
+    function verificarHorarioCaixas(horarioBrasilia, produto) {
+        
+        // 1. Verifica Início dos Intervalos (08:20:00, 11:30:00, 13:50:00) - PRIORIDADE MÁXIMA
+        for (let i = 0; i < INTERVALOS.length; i++) {
+            const inicioIntervalo = INTERVALOS[i].inicio;
+
+            if (inicioIntervalo === horarioBrasilia) {
+                // Dispara o aviso de voz específico (Bom Café/Almoço)
+                lerTextoEmVoz(INTERVALOS[i].avisoVoz); 
+                return; 
+            }
+        }
+
+        // 2. Prepara mensagens
+        const caixaAzul = document.getElementById('caixaAzul');
+        const caixaRosa = document.getElementById('caixaRosa');
+        
+        // Obtém o valor digitado ou usa o padrão temporário
+        const mensagemCicloIniciado = caixaAzul ? caixaAzul.value : estadoAtual.textosPadrao.caixaAzul;
+        const mensagemCicloFinalizado = caixaRosa ? caixaRosa.value : estadoAtual.textosPadrao.caixaRosa;
+
+
+        // 3. Verifica INÍCIO DE CICLO FIXO (06:00:00, 08:35:00, 12:30:00, 14:05:00)
+        // Estes são os horários de início de turno e retorno das pausas.
+        const horariosCicloIniciadoFixos = [
+            TURNO_INICIO,   // 06:00:00 (Início do Turno)
+            '08:35:00',     // (Retorno do Café 1)
+            '12:30:00',     // (Retorno do Almoço)
+            '14:05:00'      // (Retorno do Café 2)
+        ];
+        
+        if (horariosCicloIniciadoFixos.includes(horarioBrasilia)) {
+            lerTextoEmVoz(mensagemCicloIniciado); // FALA: Ciclo iniciado
+            return;
+        }
+
+
+        // 4. Verifica Horários de FIM DE CICLO CALCULADOS (Aviso Padrão da Caixa Rosa)
+        const produtoData = PRODUTOS.find(p => p.nome === produto);
+        if (produtoData) {
+            const limiteCiclos = 500;
+            
+            for (let i = 1; i <= limiteCiclos; i++) {
+                const horaCaixa = document.getElementById(`hora_${produto}_${i}`);
+                
+                if (horaCaixa && horaCaixa.value === horarioBrasilia) {
+                    
+                    // Dispara o aviso de FIM DE CICLO (Caixa Rosa)
+                    lerTextoEmVoz(mensagemCicloFinalizado); // FALA: Ciclo finalizado
+                    
+                    // Aviso especial para o fim do turno (17:30:00)
+                    if (horarioBrasilia === TURNO_FIM) {
+                         lerTextoEmVoz("Turno finalizado às 17 horas e 30 minutos.");
+                    }
+                    return; 
+                }
+            }
+        }
+    }
+
+    /**
+     * Função para ler o texto em voz alta.
+     */
+    function lerTextoEmVoz(texto) {
+        if (texto.trim() !== "") {
+            if (window.speechSynthesis.speaking) {
+                window.speechSynthesis.cancel();
+            }
+            const utterance = new SpeechSynthesisUtterance(texto);
+            utterance.lang = 'pt-BR';
+            window.speechSynthesis.speak(utterance);
+        }
+    }
+    
+    // -----------------------------------------------------------------------------------
+    // INICIALIZAÇÃO DO SISTEMA
+    // -----------------------------------------------------------------------------------
+    
+    let sistemaIniciado = false;
+    
+    function iniciarSistema() {
+        if (sistemaIniciado) return;
+        sistemaIniciado = true;
+        
+        const botao = document.getElementById('iniciarSistema');
+        
+        if (botao) {
+            botao.remove(); 
+        }
+        
+        setInterval(atualizarRelogio, 1000);
+        atualizarRelogio();
+
+        lerTextoEmVoz("Sistema de avisos iniciado e ativado. Bom trabalho!");
+    }
+
+    function inicializar() {
+        const tabsContainer = document.getElementById('tabs-container');
+        
+        // Configura as abas
+        PRODUTOS.forEach(produto => {
+            const button = document.createElement('button');
+            button.className = 'tab-button';
+            button.textContent = produto.nome;
+            button.dataset.produto = produto.nome;
+            button.onclick = () => trocarAba(produto.nome);
+            tabsContainer.appendChild(button);
+        });
+
+        // Troca para a primeira aba (ou a que estava ativa na sessão)
+        trocarAba(estadoAtual.produtoAtivo);
+
+        // Adiciona listener ao botão de início
+        const botaoIniciar = document.getElementById('iniciarSistema');
+        if (botaoIniciar) {
+            botaoIniciar.addEventListener('click', iniciarSistema);
+        }
+        
+        atualizarRelogio();
+    }
+
+    // Inicia tudo
+    inicializar();
+</script>
+
+</body>
+</html>
