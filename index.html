@@ -4,11 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Controle de Produção - Turno 1 (Ciclos até 17:30)</title>
-    
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#2c3e50"> 
-    <link rel="manifest" href="manifest.json">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -141,7 +136,7 @@
     </div>
 
     <button id="iniciarSistema">
-        CLIQUE AQUI PARA INICIAR O SISTEMA DE AVISOS DE VOZ (E MANTER A TELA LIGADA)
+        CLIQUE AQUI PARA INICIAR O SISTEMA DE AVISOS DE VOZ
     </button>
     <div class="tabs" id="tabs-container">
     </div>
@@ -152,68 +147,6 @@
 </div>
 
 <script>
-    // =======================================================
-    // 🚀 INÍCIO DO WAKE LOCK API (Bloqueio de Tela) 🚀
-    // LÓGICA REFORÇADA PARA REATIVAR O LOCK SE FOR LIBERADO
-    // =======================================================
-    let wakeLock = null;
-
-    /**
-     * Tenta solicitar o bloqueio da tela.
-     */
-    const requestWakeLock = async () => {
-        // Se a API não for suportada, sai.
-        if (!('wakeLock' in navigator)) {
-            console.warn('❌ Wake Lock API não suportada neste navegador.');
-            return;
-        }
-
-        // Se já estiver ativo, não tenta novamente.
-        if (wakeLock !== null) return;
-        
-        try {
-            // Solicita o bloqueio de tela
-            wakeLock = await navigator.wakeLock.request('screen');
-            console.log('✅ Screen Wake Lock Ativo! Tela não apagará.');
-
-            // Adiciona um listener para REATIVAR o bloqueio se for liberado automaticamente
-            wakeLock.addEventListener('release', () => {
-                console.log('⚠️ Bloqueio de tela liberado. Tentando reativar...');
-                // Tenta reativar o lock imediatamente se a página estiver visível.
-                if (document.visibilityState === 'visible') {
-                    requestWakeLock();
-                } else {
-                     wakeLock = null; // Zera a referência se foi liberado enquanto estava invisível.
-                }
-            });
-            
-        } catch (err) {
-            console.error(`❌ Erro ao solicitar Wake Lock: ${err.name}, ${err.message}`);
-            wakeLock = null; 
-        }
-    };
-
-    /**
-     * Lida com a visibilidade da página para tentar reativar o bloqueio ao voltar
-     */
-    const handleVisibilityChange = () => {
-        // Tenta reativar o Wake Lock quando a página volta a ser visível
-        if (document.visibilityState === 'visible') {
-            console.log('Página ficou visível. Tentando reativar Wake Lock.');
-            requestWakeLock();
-        } else {
-             console.log('Página ficou invisível.');
-        }
-    };
-
-    // Adiciona o listener de visibilidade para reativar o lock quando o usuário volta para a aba
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    // =======================================================
-    // 🛑 FIM DO WAKE LOCK API 🛑
-    // =======================================================
-
-
     // -----------------------------------------------------------------------------------
     // DADOS FIXOS E ESTADO GLOBAL (SEM LOCALSTORAGE)
     // -----------------------------------------------------------------------------------
@@ -236,7 +169,7 @@
         { nome: 'RACK MRD 3U 470MM', tactTime: 11 },
         { nome: 'RACK MRD 5U 470MM', tactTime: 11 },
         { nome: 'RACK MRD 8U 470MM', tactTime: 11 },
-        { nome: 'RACK MRD 12U 470MM', tactTime: 11.5 },
+        { nome: 'RACK MRD 12U 470MM', tactTime: 11 },
         { nome: 'RACK MRD 3U BS', tactTime: 2 },
         { nome: 'RACK MRD 5U BS', tactTime: 3 },
         { nome: 'RACK MRD 8U BS', tactTime: 5 },
@@ -247,7 +180,7 @@
         { nome: 'RACK 24U TORRE', tactTime: 2 },
         { nome: 'RACK 36U TORRE', tactTime: 4 },
         { nome: 'RACK 44U TORRE', tactTime: 2 },
-        { nome: 'RACK RPD PA 1657', tactTime: 5 },
+        { nome: 'RACK RPD PA 1657', tactTime: 4 },
         { nome: 'RACK RPD PA 2057', tactTime: 4 },
         { nome: 'RACK RPD PA 2457', tactTime: 2 },
         { nome: 'RACK RPD PA 2857', tactTime: 5 },
@@ -295,7 +228,7 @@
         { nome: 'CONJUNTO FRENTE FALSA', tactTime: 4 },
         { nome: 'CONJUNTO FRENTE FALSA (5ND)', tactTime: 3 },
         { nome: 'RACK MRM 3U ', tactTime: 3 },
-        { nome: 'RACK MRM 5U', tactTime: 6.25 },
+        { nome: 'RACK MRM 5U', tactTime: 4 },
         { nome: 'CAIXA ORG. PRETA', tactTime: 4.25 },
         { nome: 'CAIXA ORG. BRANCA', tactTime: 4.25 },
     ];
@@ -425,10 +358,10 @@
 
             if (tempoAtual === TURNO_FIM) {
                  html += `
-                     <div>
-                         <input type="time" id="hora_${nomeProduto}_${i}" value="${tempoAtual.substring(0, 8)}" step="1" readonly style="color: red; font-weight: bold;">
-                     </div>
-                 `;
+                    <div>
+                        <input type="time" id="hora_${nomeProduto}_${i}" value="${tempoAtual.substring(0, 8)}" step="1" readonly style="color: red; font-weight: bold;">
+                    </div>
+                `;
                  break; 
             }
             
@@ -527,9 +460,7 @@
         
         // Apenas verifica avisos de voz se o turno ainda não acabou.
         if (timeToSeconds(horarioBrasilia) <= TURNO_FIM_SEGUNDOS) {
-            if (sistemaIniciado) {
-                verificarHorarioCaixas(horarioBrasilia, estadoAtual.produtoAtivo);
-            }
+            verificarHorarioCaixas(horarioBrasilia, estadoAtual.produtoAtivo);
         }
     }
 
@@ -611,6 +542,40 @@
     }
     
     // -----------------------------------------------------------------------------------
+    // BLOQUEIO DE TELA (SCREEN WAKE LOCK API) - NOVO CÓDIGO INTEGRADO
+    // -----------------------------------------------------------------------------------
+    
+    let wakeLock = null; // Variável global para armazenar o objeto de bloqueio.
+
+    async function requestWakeLock() {
+        if ('wakeLock' in navigator) {
+            try {
+                // Solicita o bloqueio de tela
+                wakeLock = await navigator.wakeLock.request('screen');
+                console.log('Bloqueio de tela ativado. Mantenha esta aba visível e ativa.');
+                
+                // Adiciona listener para reativar caso o bloqueio seja perdido (ex: mudança de aba e volta)
+                document.addEventListener('visibilitychange', async () => {
+                    if (wakeLock !== null && document.visibilityState === 'visible') {
+                        await requestWakeLock();
+                    }
+                });
+                
+                // Listener para notificar quando o bloqueio é liberado
+                wakeLock.addEventListener('release', () => {
+                    console.log('Bloqueio de tela liberado pelo sistema ou por código.');
+                    wakeLock = null;
+                });
+            } catch (err) {
+                // O navegador pode rejeitar a solicitação, especialmente sem interação do usuário.
+                console.error(`Erro ao ativar o Bloqueio de Tela: ${err.name} - ${err.message}`);
+            }
+        } else {
+            console.log('Screen Wake Lock API não suportada neste navegador.');
+        }
+    }
+    
+    // -----------------------------------------------------------------------------------
     // INICIALIZAÇÃO DO SISTEMA
     // -----------------------------------------------------------------------------------
     
@@ -625,10 +590,10 @@
         if (botao) {
             botao.remove(); 
         }
-
-        // Tenta ativar o Wake Lock assim que o usuário clica no botão "Iniciar Sistema"
-        requestWakeLock(); 
         
+        // Chama a função de bloqueio de tela para manter o dispositivo ativo
+        requestWakeLock();
+
         setInterval(atualizarRelogio, 1000);
         atualizarRelogio();
 
@@ -658,16 +623,8 @@
         }
         
         atualizarRelogio();
-        
-        // Tenta ativar o Wake Lock no carregamento (é crucial tentar na interação do botão)
-        requestWakeLock();
     }
 
     // Inicia tudo
-    document.addEventListener('DOMContentLoaded', inicializar);
-
+    inicializar();
 </script>
-
-</body>
-
-</html>
