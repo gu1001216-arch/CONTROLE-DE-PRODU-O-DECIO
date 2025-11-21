@@ -136,7 +136,7 @@
     </div>
 
     <button id="iniciarSistema">
-        CLIQUE AQUI PARA INICIAR O SISTEMA DE AVISOS DE VOZ
+        CLIQUE AQUI PARA INICIAR O SISTEMA DE AVISOS DE VOZ E MANTER A TELA ATIVA
     </button>
     <div class="tabs" id="tabs-container">
     </div>
@@ -542,39 +542,52 @@
     }
     
     // -----------------------------------------------------------------------------------
-    // BLOQUEIO DE TELA (SCREEN WAKE LOCK API) - NOVO CÓDIGO INTEGRADO
+    // BLOQUEIO DE TELA (SCREEN WAKE LOCK API) - NOVO CÓDIGO INTEGRADO E OTIMIZADO
     // -----------------------------------------------------------------------------------
     
     let wakeLock = null; // Variável global para armazenar o objeto de bloqueio.
+    let isRequestingLock = false; // Flag para evitar múltiplas chamadas simultâneas
 
     async function requestWakeLock() {
-        if ('wakeLock' in navigator) {
-            try {
-                // Solicita o bloqueio de tela
-                wakeLock = await navigator.wakeLock.request('screen');
-                console.log('Bloqueio de tela ativado. Mantenha esta aba visível e ativa.');
-                
-                // Adiciona listener para reativar caso o bloqueio seja perdido (ex: mudança de aba e volta)
-                document.addEventListener('visibilitychange', async () => {
-                    if (wakeLock !== null && document.visibilityState === 'visible') {
-                        await requestWakeLock();
-                    }
-                });
-                
-                // Listener para notificar quando o bloqueio é liberado
-                wakeLock.addEventListener('release', () => {
-                    console.log('Bloqueio de tela liberado pelo sistema ou por código.');
-                    wakeLock = null;
-                });
-            } catch (err) {
-                // O navegador pode rejeitar a solicitação, especialmente sem interação do usuário.
-                console.error(`Erro ao ativar o Bloqueio de Tela: ${err.name} - ${err.message}`);
-            }
-        } else {
-            console.log('Screen Wake Lock API não suportada neste navegador.');
+        if (isRequestingLock || wakeLock !== null || !('wakeLock' in navigator)) {
+            return;
+        }
+        
+        isRequestingLock = true;
+        
+        try {
+            // Solicita o bloqueio de tela
+            wakeLock = await navigator.wakeLock.request('screen');
+            console.log('Bloqueio de tela ativado. Mantenha esta aba visível e ativa.');
+            
+            // Listener para notificar quando o bloqueio é liberado e resetar a variável
+            wakeLock.addEventListener('release', () => {
+                console.log('Bloqueio de tela liberado pelo sistema ou por código.');
+                wakeLock = null;
+                isRequestingLock = false; // Reseta a flag
+            });
+            
+        } catch (err) {
+            console.error(`Erro ao ativar o Bloqueio de Tela: ${err.name} - ${err.message}`);
+            wakeLock = null; // Garante que a variável seja nula em caso de falha
+            
+        } finally {
+            isRequestingLock = false; // Garante que a flag seja resetada
         }
     }
     
+    // Adiciona listener para reativar caso o bloqueio seja perdido ao voltar para a aba
+    document.addEventListener('visibilitychange', () => {
+        // Se a tela se tornar visível e não houver um wake lock ativo, tente reativar.
+        if (document.visibilityState === 'visible' && wakeLock === null) {
+            // Chama o requestWakeLock. Como ele tem um 'if' no início, não será ativado
+            // se o sistema ainda não tiver sido iniciado pelo usuário.
+            if(sistemaIniciado) {
+                requestWakeLock();
+            }
+        }
+    });
+
     // -----------------------------------------------------------------------------------
     // INICIALIZAÇÃO DO SISTEMA
     // -----------------------------------------------------------------------------------
@@ -583,20 +596,22 @@
     
     function iniciarSistema() {
         if (sistemaIniciado) return;
-        sistemaIniciado = true;
         
+        // 1. Tenta ativar o Wake Lock imediatamente após a interação do usuário (clique)
+        requestWakeLock();
+        
+        // 2. Remove o botão
         const botao = document.getElementById('iniciarSistema');
-        
         if (botao) {
             botao.remove(); 
         }
         
-        // Chama a função de bloqueio de tela para manter o dispositivo ativo
-        requestWakeLock();
-
+        // 3. Inicia o relógio e avisos de voz
         setInterval(atualizarRelogio, 1000);
         atualizarRelogio();
 
+        // 4. Marca como iniciado e avisa
+        sistemaIniciado = true;
         lerTextoEmVoz("Sistema de avisos iniciado e ativado. Bom trabalho!");
     }
 
