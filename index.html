@@ -590,7 +590,13 @@
 
     // Inicia tudo
     inicializar();
+    // Inicializações
+        document.addEventListener('DOMContentLoaded', () => {
+             displayLocalPunches();
+             requestWakeLock(); // Tenta ativar o Wake Lock assim que a página carrega
+        });
 </script>
 
 </body>
+
 </html>
