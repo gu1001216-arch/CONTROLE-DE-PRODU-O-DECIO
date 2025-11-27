@@ -622,7 +622,8 @@
         estadoAtual.observacoesSalvas[ciclo].concluido = isChecked;
         
         // 2. Referências aos elementos
-        const statusTextSpan = document.getElementById(`status-celula_${produto}_${ciclo}`);
+        // Pega o span de status que foi criado (se for um ciclo passado)
+        const statusTextSpan = document.getElementById(`status-celula_${produto}_${ciclo}`); 
         const obsInput = document.getElementById(`obs_${produto}_${ciclo}`);
 
         // 3. Atualiza a aparência do Status na tela imediatamente
@@ -1217,6 +1218,7 @@
 
     /**
      * Atualiza o Status e o campo de Observação de cada ciclo na tabela, preservando edições.
+     * **PRINCIPAL FUNÇÃO MODIFICADA PARA ATUALIZAÇÃO AUTOMÁTICA DE STATUS.**
      */
     function atualizarStatusTabela(horarioBrasilia) {
         const produto = estadoAtual.produtoAtivo;
@@ -1230,23 +1232,60 @@
         for (let i = 1; i <= limiteCiclos; i++) {
             const horaCaixa = document.getElementById(`hora_${produto}_${i}`);
             const obsInput = document.getElementById(`obs_${produto}_${i}`); 
+            const statusCell = document.getElementById(`status_${produto}_${i}`); // The TD container for status
             
-            if (horaCaixa && obsInput) {
+            if (horaCaixa && obsInput && statusCell) {
                 const cicloSegundos = timeToSeconds(horaCaixa.value);
                 const isEndOfShift = horaCaixa.value === TURNO_FIM;
                 
-                const cicloData = observacoesSalvas[i] || {};
-                const observacaoPersonalizada = cicloData.obs;
-                const isConcluidoSalvo = cicloData.concluido !== undefined ? cicloData.concluido : true;
+                // Garante que o objeto de dados exista, assumindo concluído: true por padrão
+                ensureCycleDataExists(i);
+                const cicloData = observacoesSalvas[i]; 
+                const observacaoSalva = cicloData.obs;
+                const isConcluidoSalvo = cicloData.concluido;
 
-                // Verificamos se a observação no cache/input é uma observação CUSTOMIZADA
-                const isCustomObservation = observacaoPersonalizada && !defaultObsTexts.includes(observacaoPersonalizada.trim());
+                // Verificamos se a observação salva no cache é uma observação CUSTOMIZADA
+                const isCustomObservation = observacaoSalva && !defaultObsTexts.includes(observacaoSalva.trim());
 
 
                 if (cicloSegundos <= nowInSeconds) {
                     // CICLO CONCLUÍDO (PASSADO)
                     
-                    // Se a observação NÃO é customizada, atualiza-a com o texto padrão baseado no status.
+                    // --- LÓGICA DE ATUALIZAÇÃO AUTOMÁTICA DE STATUS ---
+                    // 1. Checa se o statusCell ainda está no formato "ANDAMENTO" (apenas texto)
+                    const currentStatusText = statusCell.textContent.trim();
+                    if (currentStatusText === 'ANDAMENTO') {
+                        
+                        // O ciclo acaba de passar. Atualiza o HTML para incluir o checkbox.
+                        const statusText = isConcluidoSalvo ? 'CONCLUÍDO' : 'NÃO CONCLUÍDO';
+                        const statusClasseGeral = isConcluidoSalvo ? 'status-concluido' : 'status-nao-concluido';
+                        const checkedAttribute = isConcluidoSalvo ? 'checked' : '';
+                        
+                        // Cria o HTML do Checkbox e do Span de Status
+                        const newContent = `
+                            <input type="checkbox" 
+                                id="check_${produto}_${i}" 
+                                ${checkedAttribute}
+                                onchange="salvarStatus('${produto}', ${i}, this.checked)"
+                                style="cursor: pointer;">
+                            <span class="status-celula ${statusClasseGeral}" 
+                                id="status-celula_${produto}_${i}">
+                                ${statusText}
+                            </span>
+                        `;
+                        
+                        // 2. Atualiza o conteúdo da célula TD
+                        statusCell.innerHTML = newContent;
+                        
+                        // 3. Força a chamada de salvarStatus para atualizar o localStorage e o Dashboard
+                        // Isso é crucial para que o novo ciclo (agora passado) seja contado no dashboard
+                        // e tenha seu status (default: CONCLUÍDO) salvo, mesmo que não haja observação.
+                        // O 'salvarStatus' também garante que o texto de observação padrão seja definido.
+                        salvarStatus(produto, i, isConcluidoSalvo); 
+                    }
+                    // --- FIM LÓGICA DE ATUALIZAÇÃO AUTOMÁTICA DE STATUS ---
+
+                    // 4. Lógica de atualização de Observação (Preserva Customizada)
                     if (!isCustomObservation) {
                         if (isConcluidoSalvo) {
                              if (isEndOfShift) {
@@ -1257,19 +1296,27 @@
                         } else {
                              obsInput.value = 'NÃO CONCLUÍDO';
                         }
-                    } 
-                    
+                        
+                        // Também atualiza o cache para manter a consistência, se não for customizado.
+                        cicloData.obs = obsInput.value;
+                    }
+
                 } else {
                     // CICLO EM ANDAMENTO (FUTURO)
                     // Se a observação NÃO é customizada, deixa vazio.
                     if (!isCustomObservation) {
                         obsInput.value = '';
+                        cicloData.obs = '';
                     }
                 }
             } else {
                 break;
             }
         }
+        
+        // Salvamento final para garantir a persistência das observações padrão atualizadas 
+        // (ex: "Fim do turno atingido") que não passaram pela função salvarStatus.
+        salvarNoLocalStorage(produto);
     }
 
 
@@ -1291,7 +1338,7 @@
              fsRelogioElement.textContent = horarioBrasilia;
         }
         
-        // 1. Atualiza o Status e Observações da Tabela (mantendo edições)
+        // 1. Atualiza o Status e Observações da Tabela (agora com atualização automática do status)
         atualizarStatusTabela(horarioBrasilia);
 
         // 2. Atualiza os Dashboards de Ciclos Concluídos e Não Concluídos
@@ -1669,6 +1716,7 @@
     window.salvarStatus = salvarStatus; 
     window.atualizarContagemDashboard = atualizarContagemDashboard; 
     window.toggleFullscreenDashboard = toggleFullscreenDashboard; // Nova função global
+    window.trocarAba = trocarAba; // Garante que o onchange do select funcione
 
     inicializar();
 </script>
